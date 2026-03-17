@@ -341,6 +341,7 @@ img {
 .form-textarea,
 .form-select {
   width: 100%;
+  max-width: 100%;
   padding: var(--space-md);
   background: var(--bg-input);
   border: 1px solid var(--border-color);
@@ -350,6 +351,7 @@ img {
   font-size: var(--font-size-md);
   transition: all var(--transition-fast);
   outline: none;
+  box-sizing: border-box; /* Explicitly ensure border-box */
 }
 
 .form-input:focus,
@@ -737,6 +739,14 @@ img {
 
   .form-row {
     grid-template-columns: 1fr;
+    gap: var(--space-sm);
+  }
+
+  .form-input, .form-textarea, .form-select {
+    font-size: 16px; /* Prevents auto-zoom on iOS */
+    width: 100%;
+    max-width: 100%;
+    min-width: 0; /* Allows shrinking in flex/grid */
   }
 
   .food-grid {

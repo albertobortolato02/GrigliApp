@@ -92,16 +92,48 @@ export default function Dashboard() {
       .select('quantita, cibi_bevande(nome, categoria)')
       .in('partecipante_id', part ? part.map(p => p.id) : [])
       
-    const foodCounts = {}
+    const groupedStats = {}
     if (scelte) {
        scelte.forEach(s => {
+         const cat = s.cibi_bevande.categoria || 'Varie'
          const nome = s.cibi_bevande.nome
-         foodCounts[nome] = (foodCounts[nome] || 0) + (s.quantita || 1)
+         if (!groupedStats[cat]) groupedStats[cat] = {}
+         groupedStats[cat][nome] = (groupedStats[cat][nome] || 0) + (s.quantita || 1)
        })
     }
 
-    setStatsData({ partecipanti: part || [], foodCounts })
+    setStatsData({ partecipanti: part || [], groupedStats })
     setStatsLoading(false)
+  }
+
+  const shareStatsAsText = () => {
+    if (!statsData || !viewingStatsId) return
+    const grill = grigliate.find(g => g.id === viewingStatsId)
+    let text = `🔥 *Riepilogo Grigliata: ${grill?.nome}* 🔥\n\n`
+    text += `👥 Partecipanti: ${statsData.partecipanti.length}\n\n`
+    text += `🛒 *LISTA DELLA SPESA:*\n`
+    
+    Object.entries(statsData.groupedStats).forEach(([cat, items]) => {
+      text += `\n[ ${cat.toUpperCase()} ]\n`
+      Object.entries(items).sort((a,b) => b[1] - a[1]).forEach(([name, count]) => {
+        text += `- ${name}: x${count}\n`
+      })
+    })
+    
+    text += `\nGenerato con GrigliApp 🍖`
+
+    if (navigator.share) {
+      navigator.share({
+        title: `Riepilogo ${grill?.nome}`,
+        text: text
+      }).catch(() => {
+        navigator.clipboard.writeText(text)
+        alert('Riepilogo copiato negli appunti! 📋')
+      })
+    } else {
+      navigator.clipboard.writeText(text)
+      alert('Riepilogo copiato negli appunti! 📋')
+    }
   }
 
   const formatDate = (dateStr) => {
@@ -114,7 +146,6 @@ export default function Dashboard() {
         <h1 className="page-title" style={{ margin: 0 }}>📋 Le mie Grigliate</h1>
         <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
           <Link to="/crea" className="btn btn-primary btn-sm">➕ Nuova</Link>
-          <button onClick={handleDeleteAccount} className="btn btn-outline btn-sm" style={{ borderColor: 'var(--text-muted)', color: 'var(--text-muted)' }}>❌ Elimina Profilo</button>
         </div>
       </div>
 
@@ -153,6 +184,16 @@ export default function Dashboard() {
           </div>
         ))
       )}
+
+      <div style={{ marginTop: 'var(--space-2xl)', paddingTop: 'var(--space-xl)', borderTop: '1px solid var(--border-color)', textAlign: 'center' }}>
+        <button 
+          onClick={handleDeleteAccount} 
+          className="btn btn-outline btn-sm" 
+          style={{ borderColor: 'var(--text-muted)', color: 'var(--text-muted)', opacity: 0.7 }}
+        >
+          ❌ Elimina Profilo & Account
+        </button>
+      </div>
 
       {/* Delete Confirmation Modal */}
       {deleteId && (
@@ -197,22 +238,35 @@ export default function Dashboard() {
                 </div>
 
                 <div>
-                  <h3 style={{ fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-sm)', color: 'var(--color-primary)' }}>
-                    🛒 Cibo & Bevande Richiesti
-                  </h3>
-                  {Object.keys(statsData.foodCounts).length === 0 ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
+                    <h3 style={{ fontSize: 'var(--font-size-lg)', color: 'var(--color-primary)', margin: 0 }}>
+                      🛒 Cibo & Bevande Richiesti
+                    </h3>
+                    {Object.keys(statsData.groupedStats).length > 0 && (
+                      <button className="btn btn-secondary btn-sm" onClick={shareStatsAsText}>📤 Condividi Lista</button>
+                    )}
+                  </div>
+                  
+                  {Object.keys(statsData.groupedStats).length === 0 ? (
                     <div style={{ color: 'var(--text-muted)' }}>Nessuna preferenza registrata.</div>
                   ) : (
-                    <div className="card" style={{ padding: '0 var(--space-md)' }}>
-                      {Object.entries(statsData.foodCounts)
-                        .sort((a,b) => b[1] - a[1])
-                        .map(([food, count]) => (
-                        <div key={food} className="food-summary-item">
-                          <span>{food}</span>
-                          <span className="quantity">x{count}</span>
+                    Object.entries(statsData.groupedStats).map(([cat, foods]) => (
+                      <div key={cat} style={{ marginBottom: 'var(--space-md)' }}>
+                        <div style={{ fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 'var(--space-xs)', borderBottom: '1px solid var(--border-color)' }}>
+                          {cat}
                         </div>
-                      ))}
-                    </div>
+                        <div className="card" style={{ padding: '0 var(--space-md)' }}>
+                          {Object.entries(foods)
+                            .sort((a,b) => b[1] - a[1])
+                            .map(([food, count]) => (
+                            <div key={food} className="food-summary-item">
+                              <span>{food}</span>
+                              <span className="quantity">x{count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))
                   )}
                 </div>
               </>
