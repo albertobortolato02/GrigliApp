@@ -10,7 +10,7 @@ export default function JoinBBQ() {
   const [availableFoods, setAvailableFoods] = useState([])
   const [selectedFoodIds, setSelectedFoodIds] = useState([])
   const [foodQuantities, setFoodQuantities] = useState({})
-  const [form, setForm] = useState({ nome: '', cognome: '' })
+  const [form, setForm] = useState({ nome: '' })
   const [loading, setLoading] = useState(false)
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState('')
@@ -84,8 +84,7 @@ export default function JoinBBQ() {
       .from('partecipanti')
       .insert({
         grigliata_id: grigliata.id,
-        nome: form.nome,
-        cognome: form.cognome
+        nome: form.nome
       })
       .select()
       .single()
@@ -234,12 +233,8 @@ export default function JoinBBQ() {
 
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Nome</label>
-              <input type="text" className="form-input" value={form.nome} onChange={update('nome')} required placeholder="Mario" />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Cognome</label>
-              <input type="text" className="form-input" value={form.cognome} onChange={update('cognome')} required placeholder="Rossi" />
+              <label className="form-label">Tuo Nome</label>
+              <input type="text" className="form-input" value={form.nome} onChange={update('nome')} required placeholder="Pino" />
             </div>
           </div>
 

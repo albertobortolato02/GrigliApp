@@ -51,10 +51,25 @@ export default function Dashboard() {
     }
   }
 
-  const shareLink = (codice) => {
+  const shareLink = async (codice) => {
     const url = `${window.location.origin}/partecipa?code=${codice}`
-    navigator.clipboard.writeText(url)
-    alert('Link copiato negli appunti! 📋')
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Partecipa alla mia grigliata! 🔥',
+          text: 'Clicca il link per iscriverti alla grigliata e scegliere cosa portare:',
+          url: url
+        })
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error('Errore condivisione:', err)
+        }
+      }
+    } else {
+      navigator.clipboard.writeText(url)
+      alert('Link copiato negli appunti! 📋')
+    }
   }
 
   const loadStats = async (grigliataId) => {
@@ -64,7 +79,7 @@ export default function Dashboard() {
     // Load participants
     const { data: part } = await supabase
       .from('partecipanti')
-      .select('id, nome, cognome')
+      .select('id, nome')
       .eq('grigliata_id', grigliataId)
       
     // Load food summary
@@ -174,7 +189,7 @@ export default function Dashboard() {
                     <div className="card" style={{ padding: 0 }}>
                       {statsData.partecipanti.map(p => (
                         <div key={p.id} className="participant-item">
-                          {p.nome} {p.cognome}
+                          {p.nome}
                         </div>
                       ))}
                     </div>

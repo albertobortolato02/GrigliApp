@@ -122,10 +122,25 @@ export default function CreateBBQ() {
     setLoading(false)
   }
 
-  const shareLink = () => {
+  const shareLink = async () => {
     const url = `${window.location.origin}/partecipa?code=${createdCode}`
-    navigator.clipboard.writeText(url)
-    alert('Link copiato negli appunti! 📋')
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Partecipa alla mia grigliata! 🔥',
+          text: 'Clicca il link per iscriverti alla grigliata e scegliere cosa portare:',
+          url: url
+        })
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error('Errore condivisione:', err)
+        }
+      }
+    } else {
+      navigator.clipboard.writeText(url)
+      alert('Link copiato negli appunti! 📋')
+    }
   }
 
   if (createdCode) {
