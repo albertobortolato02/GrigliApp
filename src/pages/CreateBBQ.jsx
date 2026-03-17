@@ -124,12 +124,12 @@ export default function CreateBBQ() {
 
   const shareLink = async () => {
     const url = `${window.location.origin}/partecipa?code=${createdCode}`
-    
+
     if (navigator.share) {
       try {
         await navigator.share({
           title: 'Partecipa alla mia grigliata! 🔥',
-          text: 'Clicca il link per iscriverti alla grigliata e scegliere cosa portare:',
+          text: 'Clicca il link per iscriverti alla grigliata e scegliere cosa mangiare:',
           url: url
         })
       } catch (err) {
@@ -213,10 +213,10 @@ export default function CreateBBQ() {
 
         <div className="form-group">
           <label className="form-label">Cibi e bevande disponibili ({selectedFoodIds.length} selezionati)</label>
-          <FoodSelector 
-            items={allFoods} 
-            selectedIds={selectedFoodIds} 
-            onToggle={toggleFood} 
+          <FoodSelector
+            items={allFoods}
+            selectedIds={selectedFoodIds}
+            onToggle={toggleFood}
             onSelectAll={selectAllInCategory}
           />
         </div>
