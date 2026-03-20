@@ -39,6 +39,31 @@ export default function Dashboard() {
     setDeleteId(null)
   }
 
+  const handleDeleteParticipant = async (participantId) => {
+    if (!window.confirm('Sei sicuro di voler rimuovere questo partecipante dalla grigliata?')) return
+
+    setStatsLoading(true)
+
+    // Per sicurezza, cancelliamo esplicitamente prima le scelte alimentari 
+    // nel caso non ci sia ON DELETE CASCADE nel database.
+    await supabase.from('partecipanti_scelte').delete().eq('partecipante_id', participantId)
+    
+    // Cancelliamo il partecipante
+    const { error: errPart } = await supabase.from('partecipanti').delete().eq('id', participantId)
+
+    if (errPart) {
+      alert('Errore durante la rimozione: ' + errPart.message)
+      setStatsLoading(false)
+      return
+    }
+
+    // Ricarichiamo le statistiche e la lista per aggiornare tutte le quantità totali
+    if (viewingStatsId) {
+      await loadStats(viewingStatsId)
+    }
+    await loadGrigliate()
+  }
+
   const handleDeleteAccount = async () => {
     if (!confirm('🚨 ATTENZIONE: Sei sicuro di voler eliminare DEFINITIVAMENTE il tuo account e tutte le tue grigliate? Nessuno potrà più visualizzarle.')) return
 
@@ -229,8 +254,16 @@ export default function Dashboard() {
                   ) : (
                     <div className="card" style={{ padding: 0 }}>
                       {statsData.partecipanti.map(p => (
-                        <div key={p.id} className="participant-item">
-                          {p.nome}
+                        <div key={p.id} className="participant-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>{p.nome}</span>
+                          <button 
+                            onClick={() => handleDeleteParticipant(p.id)} 
+                            className="btn btn-danger btn-sm"
+                            style={{ padding: '0.2rem 0.5rem', background: 'transparent', color: 'var(--color-danger)', border: 'none', boxShadow: 'none' }}
+                            title="Rimuovi partecipante"
+                          >
+                            🗑️
+                          </button>
                         </div>
                       ))}
                     </div>
