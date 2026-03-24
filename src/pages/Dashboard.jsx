@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
+import FoodSelector from '../components/FoodSelector'
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -14,6 +15,12 @@ export default function Dashboard() {
   const [viewingStatsId, setViewingStatsId] = useState(null)
   const [statsData, setStatsData] = useState(null)
   const [statsLoading, setStatsLoading] = useState(false)
+
+  // Participant edit states
+  const [editingParticipant, setEditingParticipant] = useState(null)
+  const [selectedFoodIds, setSelectedFoodIds] = useState([])
+  const [foodQuantities, setFoodQuantities] = useState({})
+  const [savingParticipant, setSavingParticipant] = useState(false)
 
   useEffect(() => {
     loadGrigliate()
@@ -114,21 +121,89 @@ export default function Dashboard() {
     // JS level aggregation for food stats
     const { data: scelte } = await supabase
       .from('partecipanti_scelte')
-      .select('quantita, cibi_bevande(nome, categoria)')
-      .in('partecipante_id', part ? part.map(p => p.id) : [])
+      .select('id, partecipante_id, quantita, cibo_id, cibi_bevande(id, nome, categoria)')
+      .in('partecipante_id', part && part.length > 0 ? part.map(p => p.id) : [0])
 
     const groupedStats = {}
+    const scelteByParticipant = {}
+
     if (scelte) {
       scelte.forEach(s => {
         const cat = s.cibi_bevande.categoria || 'Varie'
         const nome = s.cibi_bevande.nome
         if (!groupedStats[cat]) groupedStats[cat] = {}
         groupedStats[cat][nome] = (groupedStats[cat][nome] || 0) + (s.quantita || 1)
+
+        if (!scelteByParticipant[s.partecipante_id]) {
+          scelteByParticipant[s.partecipante_id] = []
+        }
+        scelteByParticipant[s.partecipante_id].push(s)
       })
     }
 
-    setStatsData({ partecipanti: part || [], groupedStats })
+    // Load available foods for this grigliata to allow editing
+    const { data: foodLinks } = await supabase
+      .from('grigliate_cibi')
+      .select('cibo_id, cibi_bevande(*)')
+      .eq('grigliata_id', grigliataId)
+    const availableFoods = foodLinks ? foodLinks.map(fl => fl.cibi_bevande) : []
+
+    setStatsData({ partecipanti: part || [], groupedStats, scelteByParticipant, availableFoods })
     setStatsLoading(false)
+  }
+
+  const openParticipantStats = (participant) => {
+    setEditingParticipant(participant)
+    const pScelte = statsData.scelteByParticipant[participant.id] || []
+    setSelectedFoodIds(pScelte.map(s => s.cibo_id))
+    
+    const qty = {}
+    pScelte.forEach(s => {
+      qty[s.cibo_id] = s.quantita || 1
+    })
+    setFoodQuantities(qty)
+  }
+
+  const handleSaveParticipant = async () => {
+    setSavingParticipant(true)
+
+    // Delete existing choices
+    await supabase.from('partecipanti_scelte').delete().eq('partecipante_id', editingParticipant.id)
+
+    // Insert new choices
+    if (selectedFoodIds.length > 0) {
+      const scelteToInsert = selectedFoodIds.map(cibo_id => ({
+        partecipante_id: editingParticipant.id,
+        cibo_id,
+        quantita: foodQuantities[cibo_id] || 1
+      }))
+      const { error } = await supabase.from('partecipanti_scelte').insert(scelteToInsert)
+      if (error) alert('Errore salvataggio: ' + error.message)
+    }
+
+    setSavingParticipant(false)
+    setEditingParticipant(null)
+    
+    await loadStats(viewingStatsId)
+  }
+
+  const toggleFood = (id) => {
+    setSelectedFoodIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+
+  const changeQuantity = (id, newQty) => {
+    if (newQty <= 0) {
+      setSelectedFoodIds(prev => prev.filter(x => x !== id))
+      setFoodQuantities(prev => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    } else {
+      setFoodQuantities(prev => ({ ...prev, [id]: newQty }))
+    }
   }
 
   const shareStatsAsText = () => {
@@ -236,10 +311,38 @@ export default function Dashboard() {
 
       {/* Stats and Participants Modal */}
       {viewingStatsId && (
-        <div className="modal-overlay" onClick={(e) => { if (e.target.className === 'modal-overlay') setViewingStatsId(null) }}>
+        <div className="modal-overlay" onClick={(e) => { if (e.target.className === 'modal-overlay') { setViewingStatsId(null); setEditingParticipant(null); } }}>
           <div className="modal-content">
-            <button className="modal-close" onClick={() => setViewingStatsId(null)}>&times;</button>
-            <h2 className="modal-title">Riepilogo Grigliata</h2>
+            <button className="modal-close" onClick={() => { setViewingStatsId(null); setEditingParticipant(null); }}>&times;</button>
+            
+            {editingParticipant ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setEditingParticipant(null)}>← Indietro</button>
+                  <h2 className="modal-title" style={{ margin: '0 0 0 var(--space-md)', fontSize: 'var(--font-size-lg)' }}>
+                    Scelte di {editingParticipant.nome}
+                  </h2>
+                </div>
+
+                <div className="form-group" style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: '5px' }}>
+                  <FoodSelector 
+                    items={statsData.availableFoods} 
+                    selectedIds={selectedFoodIds} 
+                    onToggle={toggleFood} 
+                    quantities={foodQuantities}
+                    onQuantityChange={changeQuantity}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: 'var(--space-sm)', marginTop: 'var(--space-md)' }}>
+                  <button className="btn btn-primary btn-full" disabled={savingParticipant} onClick={handleSaveParticipant}>
+                    {savingParticipant ? 'Salvataggio...' : '💾 Salva Modifiche'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="modal-title">Riepilogo Grigliata</h2>
 
             {statsLoading ? (
               <div className="spinner"></div>
@@ -254,10 +357,10 @@ export default function Dashboard() {
                   ) : (
                     <div className="card" style={{ padding: 0 }}>
                       {statsData.partecipanti.map(p => (
-                        <div key={p.id} className="participant-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div key={p.id} className="participant-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => openParticipantStats(p)}>
                           <span>{p.nome}</span>
                           <button 
-                            onClick={() => handleDeleteParticipant(p.id)} 
+                            onClick={(e) => { e.stopPropagation(); handleDeleteParticipant(p.id) }} 
                             className="btn btn-danger btn-sm"
                             style={{ padding: '0.2rem 0.5rem', background: 'transparent', color: 'var(--color-danger)', border: 'none', boxShadow: 'none' }}
                             title="Rimuovi partecipante"
@@ -302,6 +405,8 @@ export default function Dashboard() {
                     ))
                   )}
                 </div>
+              </>
+            )}
               </>
             )}
           </div>
